@@ -1,0 +1,136 @@
+-- Tática Let
+let a = 10 in a * 2
+
+--
+f x = let k = 10 in x + k
+
+-- Maneira alternativa (válido para funções)
+f x = x + k
+    where k = 10
+
+-- O 'where' precisa ser identado
+f x = x + a + b * c
+    where a = 10
+          b = 20
+          c = 30
+f x = x + a + b * c
+    where {a = 10 ;b = 20; c = 30}
+
+---------------------------------------
+        Funções como valores
+--------------------------------------------
+
+Prelude> sqrt 10
+3.1622776601683795
+Prelude> sin 3
+0.1411200080598672
+Prelude> f = (sqrt . sin)
+Prelude> f 10
+NaN
+Prelude> f 2
+0.9535708819095106
+
+alo ++ "2"
+
+f1 = flip (++)
+
+f1 "alo" "2"
+
+flip' f = \x y -> f y x
+
+f2 = flip' (++)
+
+compo g f = \x -> g (f x)
+
+main = print ("alo" `f2` "2")
+
+-- f x y = x + y
+-- f = \x y -> x + y
+
+-- Currying
+-- f = \x -> \y -> x + y
+
+Prelude> :type (f)
+(f) :: Num a => a -> a -> a
+
+    f 10 20
+    haskell lê isso como se tivesse escrito
+    (f 10) 20
+
+Prelude> :t (++)
+(++) :: [a] -> [a] -> [a]
+
+-- polimorfismo paramétrico
+flip' :: (a -> b -> c) -> b -> a -> c
+flip' f = \x -> \y -> f y x
+
+f2 = flip (++) 21 'a' ----> (++) 'a' 23
+
+[1,2,3,4]
+
+head [1,2,3,4]
+1
+
+tail [1,2,3,4]
+[2,3,4]
+
+:type head
+head :: [a] -> a
+:type tail
+tail :: [a] -> [a]
+
+Prelude> []
+[]
+Prelude> 3:[]
+[3]
+Prelude> 1:(2:(3:(4:[]))))
+
+<interactive>:3:17: error: parse error on input ‘)’
+Prelude> 1:(2:(3:(4:[])))
+[1,2,3,4]
+
+Construtores
+[]
+:
+
+Prelude> :type (:)
+(:) :: a -> [a] -> [a]
+
+Prelude> :type []
+[] :: [a]
+
+
+
+Destrutores
+head
+tail 
+null
+
+soma xs = if null xs then 0 else (head xs) + (soma (tail xs))
+
+main = print (soma [1,2,3,4])
+
+-- ninguém escreve assim...
+-- melhorando, usando pattern matching
+soma [] = 0
+soma (h:t) = h + soma t
+
+
+-- comprimento de uma lista
+len :: [a] -> Integer
+len [] = 0
+len (h:t) = 1 + len t
+
+append :: [a] -> [a] -> [a]
+append [] ys = ys
+append (x:xs) ys = x : (append xs ys)
+
+-- Exercício para a próxima aula!!
+    - Escreva uma função reverse em Haskell
+    - Considerem a eficiência da função
+    - Pensem sobre como poderíamos escrever uma reverse mais eficiente
+-- Dúvidas
+ - expressão lambda não é açucar sintático (OK)
+ - combinação da sintaxe de função convencional com expressão lambda 
+    (você pode usar expressões lambda entre parênteses)
+- N
