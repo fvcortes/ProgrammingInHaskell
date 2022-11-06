@@ -30,7 +30,7 @@ instance Applicative Parser where
 
 
 instance Monad Parser where
-  return = unit
+  return = pure
   (>>=) = bind
   
 instance MonadFail Parser where
@@ -213,7 +213,13 @@ p_exp = sp >> (p_let `orelse` p_lambda `orelse` p_if `orelse` p_arith)
 
 prog = "\\x -> letrec y = \\x -> x * 5 in if x then y a b else b * 25"
 
-main = print (apply p_exp prog)
+progfat = "letrec fat = \\x -> if x then x * fat (x-1) else 1 in fat 2"
+
+progpow = "letrec pow = \\x -> \\y -> if y then x * pow x (y-1) else 1 in pow 2 2"
+
+--main = print (apply p_exp prog)
+--main = print (apply p_exp progfat)
+main = print (apply p_exp progpow)
 
 
 -- Exercício --->
