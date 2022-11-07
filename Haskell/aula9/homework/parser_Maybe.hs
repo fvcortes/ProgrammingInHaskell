@@ -63,6 +63,9 @@ pair pa pb =
      b <- pb
      return (a,b)
 
+optional :: Parser a -> Parser (Maybe a)
+optional p = (p >>= (return . Just)) `orelse` return Nothing
+
 many :: Parser a -> Parser [a]
 many p = many1 p `orelse` return []
 
@@ -164,11 +167,11 @@ binExp elem ops =
      es <- many (pair (strings ops) elem)
      return (buildBinExp e es)
 
-p_mul :: Parser Exp
-p_mul = binExp p_app ["*", "/"]
+term :: Parser Exp   -- term
+term = binExp p_app ["*", "/"]
 
-p_sum :: Parser Exp
-p_sum = binExp p_mul ["+", "-"]
+p_sum :: Parser Exp   -- exp
+p_sum = binExp term ["+", "-"]
 
 p_arith = p_sum
 
@@ -226,6 +229,28 @@ main = print (apply p_exp progpow)
 -- Fazer uns programinhas para uma função de fatorial, e x^y
 -- fat = "\n -> ..."
 
--- parser
+-- ---------------------GHCI ---------------------
+-- ghci> apply p_int "456"
+-- Just (ExpK 456,"")
+-- ghci> apply p_int "+ 456"
+-- Nothing
+-- ghci> apply (string "+") "+"
+-- Just ((),"")
+-- ghci> apply (? (string "+") p_int) "+456"
+-- ghci> apply (pair (string "+") p_int) "+456"
+-- Just (((),ExpK 456),"")
+-- ghci> apply (pair (strings ["+","-"]) p_int) "+456"
+-- Just (("+",ExpK 456),"")
+-- ghci> apply (pair (strings ["+","-"]) p_int) "+-456"
+-- Nothing
+-- ghci> apply (pair (strings ["+","-"]) p_int) "-456"
+-- Just (("-",ExpK 456),"")
+-- ghci> apply (pair (strings ["+","-"]) p_int) "-456"
+-- Just (("-",ExpK 456),"")
+-- ghci> apply (many (pair (strings ["+","-"]) p_int)) "-456"
+-- Just ([("-",ExpK 456)],"")
 
-
+------------------------------------------------
+-- exercicio
+-- juntar o parser com aquele interpretador de memarith
+-- Ou seja, criar um parser para interpretar aquela linguagem de memarith
