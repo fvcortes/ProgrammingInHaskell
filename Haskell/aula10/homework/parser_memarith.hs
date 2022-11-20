@@ -3,17 +3,17 @@ import Data.Char
 newtype Parser a = Parser (String -> Maybe (a, String))
 -- newtype Parser a = Parser (String -> Maybe (a, String))
 
-applyP :: Parser a -> (String -> Maybe (a, String))
-applyP (Parser f) = f
+apply :: Parser a -> (String -> Maybe (a, String))
+apply (Parser f) = f
 
 
 unitP :: a -> Parser a
 unitP x = Parser (\s -> Just (x, s))
 
 bindP :: Parser a -> (a -> Parser b) -> Parser b
-bindP m f = Parser (\s -> aux (applyP m s))
+bindP m f = Parser (\s -> aux (apply m s))
   where aux Nothing = Nothing
-        aux (Just (x,s')) = applyP (f x) s'
+        aux (Just (x,s')) = apply (f x) s'
 
 -- bind :: Parser a -> (a -> Parser b) -> Parser b
 -- bind m f  = Parser (\s -> concat (map f' (apply m s)))
@@ -48,7 +48,7 @@ item = Parser f
 
 orelse :: Parser a -> Parser a -> Parser a
 p `orelse` p' = Parser f
-  where f s = let l = applyP p s in if null l then applyP p' s else l
+  where f s = let l = apply p s in if null l then apply p' s else l
 
 
 sat :: (Char -> Bool) -> Parser Char
@@ -96,13 +96,14 @@ name =
      sp
      return (first:rest)
 ----------------------------------------------------------------------
+
 data Exp = ENum Integer
          | EVar String
          | EPlus Exp Exp
          | ESub Exp Exp
          | EMul Exp Exp
-         | EInc String
-         | EAssg String Exp
+         | EInc Exp
+         | EAssg Exp Exp
          | ESeq Exp Exp
          | EIf Exp Exp Exp
          | EWhile Exp Exp
@@ -113,61 +114,293 @@ instance Show Exp where
   show (EPlus e1 e2) = "(" ++ show e1 ++ " + " ++ show e2 ++ ")"
   show (ESub e1 e2) = "(" ++ show e1 ++ " - " ++ show e2 ++ ")"
   show (EMul e1 e2) = "(" ++ show e1 ++ " * " ++ show e2 ++ ")"
-  show (EInc v) = v ++ "++ "
-  show (EAssg v e) = "(" ++ v ++ " := " ++ show e ++ ")"
+  show (EInc v) = show v ++ "++ "
+  show (EAssg v e) = "(" ++ show v ++ " := " ++ show e ++ ")"
   show (ESeq e1 e2) = show e1 ++ "; " ++ show e2
   show (EIf cond th el) = "if " ++ show cond ++ " then " ++
                           show th ++ " else " ++ show el
   show (EWhile cond body) = "while " ++ show cond ++ " do " ++ show body
 ---------------------------------------------------------------------
+
+-- int = digit+
+p_int :: Parser Exp
+p_int =
+  do n <- many1 (sat isDigit)
+     sp
+     return (ENum (read n))
+
+
+-- var = alphanum+   (except reserved words)
+p_var :: Parser Exp
+p_var =
+  do n <- name
+     if (elem n rw) then fail ""
+                    else return (EVar n)
+  where
+    rw = ["if", "then", "else", "while", "do"]
+
+-- par = '(' exp ')'
+p_par :: Parser Exp
+p_par =
+  do string "("
+     x <- p_exp
+     string ")"
+     return x
+
+
+p_primary :: Parser Exp
+p_primary = p_int `orelse` p_var `orelse` p_par
+
+
+-- app = primary+
+-- p_app :: Parser Exp
+-- p_app =
+--   do exps <- many1 p_primary
+--      return (foldl1 ExpApp exps)
+
+
+buildBinExp :: Exp -> [(String, Exp)] -> Exp
+buildBinExp e l = foldl f e l
+  where
+    f e (op, e') = (binOp op) e e'
+    binOp :: String -> (Exp -> Exp -> Exp)
+    binOp "+" = EPlus
+    binOp "-" = ESub
+    binOp "*" = EMul
+
+-- binExp elem ops = elem (ops elem)*
+binExp :: Parser Exp -> [String] -> Parser Exp
+binExp elem ops =
+  do e <- elem
+     es <- many (pair (strings ops) elem)
+     return (buildBinExp e es)
+
+-- term :: Parser Exp
+-- term = binExp p_app ["*", "/"]
+
+-- p_sum :: Parser Exp       -- exp
+-- p_sum = binExp term ["+", "-"]
+
+
+-- p_arith = p_sum
+
+-- if = 'if' exp 'then' exp 'else 'exp
+p_if :: Parser Exp
+p_if =
+  do string "if"
+     cond <- p_exp
+     string "then"
+     th <- p_exp
+     string "else"
+     el <- p_exp
+     return (EIf cond th el)
+
+p_while :: Parser Exp
+p_while =
+  do string "while"
+     cond <- p_exp
+     string "do"
+     body <- p_exp
+     return (EWhile cond body)
+
+p_seq :: Parser Exp
+p_seq =
+  do cmd1 <- p_exp
+     string ";"
+     cmd2 <- p_exp
+     return (ESeq cmd1 cmd2)
+
+p_assg :: Parser Exp
+p_assg =
+  do var <- p_var
+     string ":="
+     exp <- p_exp
+     return (EAssg var exp)     
+
+p_inc :: Parser Exp
+p_inc =
+  do var <- p_var
+     string "++"
+     return (EInc var)
+
+-- lambda = '\' name '->' exp
+-- p_lambda :: Parser Exp
+-- p_lambda =
+--   do string "\\"
+--      var <- name
+--      string "->"
+--      body <- p_exp
+--      return (ExpLambda var body)
+
+-- let = 'letrec' name '=' '\' name '->' exp 'in' exp
+-- p_let :: Parser Exp
+-- p_let =
+--   do string "letrec"
+--      var <- name
+--      string "="
+--      string "\\"
+--      var' <- name
+--      string "->"
+--      f <- p_exp
+--      string "in"
+--      bd <- p_exp
+--      return (ExpLetrec var var' f bd)
+     
+
+p_exp :: Parser Exp
+--p_exp = sp >> (p_let `orelse` p_lambda `orelse` p_if `orelse` p_arith)
+p_exp = sp >> (p_seq)
+----------------------------------------------------------------------
+
+prog = "\\x -> letrec y = \\x -> x * 5 in if x then y a b else b * 25"
+-- main
+main :: IO ()
+main = print (apply p_exp prog)
+
+------------------------- memarith ---------------------------------
+---------------------------------------------------------------------
+
+-- Memory type
 type Mem = String -> Integer
 
---type M a = Mem -> (a, Mem)
+type M a = Mem -> (a, Mem)
 
---------------------------------------------------------------------- 
+---------------------------------------------------------------------
+-- unit & bind
+unit :: a -> M a
+unit x = \m -> (x, m)
 
-newtype Memory a = Memory (Mem -> Maybe (a, Mem))
+bind :: M a -> (a -> M b) -> M b
+-- bind :: (Mem -> (a, Mem)) -> (a -> (Mem -> (b, Mem))) -> (Mem -> (b, Mem))
+bind ma f = \m -> let (a, m') = ma m in
+                    (f a) m'
+---------------------------------------------------------------------
+-- auxiliar functions for expression evaluation
+query :: String -> M Integer
+query var = \m -> (m var, m)
 
-applyM :: Memory a -> (Mem -> Maybe (a, Mem))
-applyM (Memory f) = f
+inc :: String -> M Integer
+-- inc :: String -> Mem -> (Integer, Mem)
+inc var m = (m var, m')
+  where m' = \var' -> if var' == var then m var' + 1 else m var'
+
+assg :: String -> M Integer -> M Integer
+assg var comp m = let (v, m') = comp m
+                      m'' = \var' -> if var == var' then v else m' var'
+                   in (v, m'')
+
+---------------------------------------------------------------------
+
+-- lift f ma = bind ma (\x -> unit (f x))
+-- lift f ma = bind ma aux
+--   where aux x = unit (f x)
+lift f ma = bind ma (unit . f)
 
 
-unitM :: a -> Memory a
-unitM x = Memory (\m -> Just (x, m))
+bind2 :: M a -> M b -> (a -> b -> M c) -> M c
+bind2 ma mb f = bind ma (\a -> bind mb (\b -> f a b))
 
-bindM :: Memory a -> (a -> Memory b) -> Memory b
-bindM m f = Memory (\m' -> aux (applyM m m'))
-  where aux Nothing = Nothing
-        aux (Just (x,m'')) = applyM (f x) m''
-
--- bind :: Parser a -> (a -> Parser b) -> Parser b
--- bind m f  = Parser (\s -> concat (map f' (apply m s)))
---    where f' (a, s) = apply (f a) s
+lift2 :: (a -> b -> c) -> M a -> M b -> M c
+lift2 f ma mb = bind2 ma mb (\a b -> (unit (f a b)))
 
 
-instance Functor Memory where
-  fmap f m = bindM m (unitM . f)
+-- M�nada:
+-- Um construtor de tipos M (e.g., Maybe)
+-- Uma fun��o 'unit :: a -> M a'
+-- Uma fun��o 'bind :: M a -> (a -> M b) -> M b'
+-- (N�o existe uma fun��o com tipo 'M a -> a' !!)
+
+---------------------------------------------------------------------
+-- -- eval function
+-- eval :: Exp -> M Integer
+
+-- eval (ENum n) = unit n
+
+-- eval (EVar var) = query var
+
+-- eval (EPlus e1 e2) = lift2 (+) (eval e1) (eval e2)
+-- eval (ESub e1 e2) = lift2 (-) (eval e1) (eval e2)
+-- eval (EMul e1 e2) = lift2 (*) (eval e1) (eval e2)
+
+-- eval (ESeq e1 e2) = lift2 seq (eval e1) (eval e2)
+--   where seq x y = y
+
+-- eval (EAssg var e) = assg var (eval e)
+
+-- eval (EInc var) = inc var
+
+-- eval (EIf cond th el) = 
+--   bind (eval cond) (\c -> if c /= 0 then eval th else eval el)
+
+-- eval (EWhile cond body) = w 0
+--   where w n = bind (eval cond) (\c -> 
+--                 if c == 0 then unit n
+--                 else bind (eval body) (\_ -> w (n + 1)))
+                
 
 
-instance Applicative Memory where
-  pure = unitM
-  pf <*> px = bindM pf (\f -> bindM px (\x -> unitM (f x)))
+-- -- n = 10; x = 1; while n do { n := n - 1; x = 2 * x; }; x
+-- e =  ESeq (EAssg "n" (ENum 10))
+--     (ESeq (EAssg "x" (ENum 1))
+--     (ESeq (EWhile (EVar "n")
+--                   (ESeq (EAssg "n" (ESub (EVar "n") (ENum 1)))
+--                         (EAssg "x" (EMul (EVar "x") (ENum 2)))))
+--     (EVar "x")))
+
+-- emptyMem = \s -> 0
 
 
-instance Monad Memory where
-  return = pure
-  (>>=) = bindM
+
+-- main = print (show e ++ " = " ++ show' (eval e emptyMem))
+--    where show' (a,m) = show a
+
+
+-- type Mem = String -> Integer
+
+-- --type M a = Mem -> (a, Mem)
+
+-- newtype Memory a = Memory (Mem -> Maybe (a, Mem))
+
+-- applyM :: Memory a -> (Mem -> Maybe (a, Mem))
+-- applyM (Memory f) = f
+
+
+-- unitM :: a -> Memory a
+-- unitM x = Memory (\m -> Just (x, m))
+
+-- bindM :: Memory a -> (a -> Memory b) -> Memory b
+-- bindM m f = Memory (\m' -> aux (applyM m m'))
+--   where aux Nothing = Nothing
+--         aux (Just (x,m'')) = applyM (f x) m''
+
+-- -- bind :: Parser a -> (a -> Parser b) -> Parser b
+-- -- bind m f  = Parser (\s -> concat (map f' (apply m s)))
+-- --    where f' (a, s) = apply (f a) s
+
+
+-- instance Functor Memory where
+--   fmap f m = bindM m (unitM . f)
+
+
+-- instance Applicative Memory where
+--   pure = unitM
+--   pf <*> px = bindM pf (\f -> bindM px (\x -> unitM (f x)))
+
+
+-- instance Monad Memory where
+--   return = pure
+--   (>>=) = bindM
   
-instance MonadFail Memory where
-  fail _ = Memory (\s -> Nothing)
+-- instance MonadFail Memory where
+--   fail _ = Memory (\s -> Nothing)
 
 ---------------------------------------------------------------------
 
 --query :: String -> Memory Integer
 --query var = \m -> (m var, m)
 
-query :: String -> Memory Integer
-query var = Memory (\m -> Just (m var, m))
+-- query :: String -> Memory Integer
+-- query var = Memory (\m -> Just (m var, m))
 
 
 --inc var = Memory (\m -> Just (m var, m'))
@@ -185,41 +418,41 @@ query var = Memory (\m -> Just (m var, m))
 
 ---------------------------------------------------------------------
 
-lift f ma = bindM ma (unitM . f)
+-- lift f ma = bindM ma (unitM . f)
 
-bind2 :: Memory a -> Memory b -> (a -> b -> Memory c) -> Memory c
-bind2 ma mb f = bindM ma (\a -> bindM mb (\b -> f a b))
+-- bind2 :: Memory a -> Memory b -> (a -> b -> Memory c) -> Memory c
+-- bind2 ma mb f = bindM ma (\a -> bindM mb (\b -> f a b))
 
-lift2 :: (a -> b -> c) -> Memory a -> Memory b -> Memory c
-lift2 f ma mb = bind2 ma mb (\a b -> (unitM (f a b)))
+-- lift2 :: (a -> b -> c) -> Memory a -> Memory b -> Memory c
+-- lift2 f ma mb = bind2 ma mb (\a b -> (unitM (f a b)))
 
----------------------------------------------------------------------
+-- ---------------------------------------------------------------------
 
-eval :: Exp -> Memory Integer
+-- eval :: Exp -> Memory Integer
 
-eval (ENum n) = unitM n
+-- eval (ENum n) = unitM n
 
-eval (EVar var) = query var
+-- eval (EVar var) = query var
 
-eval (EPlus e1 e2) = lift2 (+) (eval e1) (eval e2)
-eval (ESub e1 e2) = lift2 (-) (eval e1) (eval e2)
-eval (EMul e1 e2) = lift2 (*) (eval e1) (eval e2)
+-- eval (EPlus e1 e2) = lift2 (+) (eval e1) (eval e2)
+-- eval (ESub e1 e2) = lift2 (-) (eval e1) (eval e2)
+-- eval (EMul e1 e2) = lift2 (*) (eval e1) (eval e2)
 
-eval (ESeq e1 e2) = lift2 seq (eval e1) (eval e2)
-  where seq x y = y
+-- eval (ESeq e1 e2) = lift2 seq (eval e1) (eval e2)
+--   where seq x y = y
 
---eval (EAssg var e) = assg var (eval e)
+-- --eval (EAssg var e) = assg var (eval e)
 
---eval (EInc var) = inc var
+-- --eval (EInc var) = inc var
 
-eval (EIf cond th el) = 
-  bindM (eval cond) (\c -> if c /= 0 then eval th else eval el)
+-- eval (EIf cond th el) = 
+--   bindM (eval cond) (\c -> if c /= 0 then eval th else eval el)
 
-eval (EWhile cond body) = w 0
-  where w n = bindM (eval cond) (\c -> 
-                if c == 0 then unitM n
-                else bindM (eval body) (\_ -> w (n + 1)))
+-- eval (EWhile cond body) = w 0
+--   where w n = bindM (eval cond) (\c -> 
+--                 if c == 0 then unitM n
+--                 else bindM (eval body) (\_ -> w (n + 1)))
 
 
+-- n = 10; x = 1; while n do { n := n - 1; x = 2 * x; }; x
 
-main = print "Hello"
