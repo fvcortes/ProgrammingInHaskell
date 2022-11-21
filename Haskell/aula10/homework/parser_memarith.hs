@@ -166,6 +166,7 @@ buildBinExp e l = foldl f e l
     binOp "+" = EPlus
     binOp "-" = ESub
     binOp "*" = EMul
+    binOp ";" = ESeq
 
 -- binExp elem ops = elem (ops elem)*
 binExp :: Parser Exp -> [String] -> Parser Exp
@@ -174,40 +175,44 @@ binExp elem ops =
      es <- many (pair (strings ops) elem)
      return (buildBinExp e es)
 
--- term :: Parser Exp
--- term = binExp p_seq ["*", "/"]
+term :: Parser Exp
+term = binExp p_primary ["*", "/"]
 
--- p_sum :: Parser Exp       -- exp
--- p_sum = binExp term ["+", "-"]
+p_sum :: Parser Exp       -- exp
+p_sum = binExp term ["+", "-"]
 
 
--- p_arith = p_sum
+p_arith = p_sum
 
 -- if = 'if' exp 'then' exp 'else 'exp
 p_if :: Parser Exp
 p_if =
   do string "if"
-     cond <- p_exp
+     cond <- p_arith
      string "then"
-     th <- p_exp
+     th <- p_exp1
      string "else"
-     el <- p_exp
+     el <- p_exp1
      return (EIf cond th el)
 
 p_while :: Parser Exp
 p_while =
   do string "while"
-     cond <- p_exp
+     cond <- p_arith
      string "do"
-     body <- p_exp
+     body <- p_exp1
      return (EWhile cond body)
 
-p_seq :: Parser Exp
-p_seq =
-  do cmd1 <- p_exp
-     string ";"
-     cmd2 <- p_exp
-     return (ESeq cmd1 cmd2)
+p_seq = binExp p_exp1 [";"]
+
+
+
+-- p_seq :: Parser Exp
+-- p_seq =
+--   do cmd1 <- p_exp
+--      string ";"
+--      cmd2 <- p_exp
+--      return (ESeq cmd1 cmd2)
 
 -- seq
 -- p_seq :: Parser Exp
@@ -221,7 +226,7 @@ p_assg :: Parser Exp
 p_assg =
   do var <- name
      string ":="
-     exp <- p_exp
+     exp <- p_exp1
      return (EAssg var exp)     
 
 p_inc :: Parser Exp
@@ -254,17 +259,15 @@ p_inc =
 --      return (ExpLetrec var var' f bd)
      
 
-p_exp :: Parser Exp
+p_exp1 :: Parser Exp
 --p_exp = sp >> (p_let `orelse` p_lambda `orelse` p_if `orelse` p_arith)
 --p_exp = sp >> (p_seq `orelse` p_if `orelse` p_while `orelse` p_primary)
-p_exp = sp >> (p_while `orelse` p_if `orelse`  p_primary)
+p_exp1 = sp >> (p_while `orelse` p_if `orelse` p_assg `orelse` p_arith)
+
+p_exp = p_seq
 --p_exp = sp >> (p_seq `orelse` p_if `orelse` p_while `orelse` p_primary)
 ----------------------------------------------------------------------
 
-prog = "x:=10;y:=20"
--- main
---main :: IO ()
---main = print (apply p_seq prog)
 
 ------------------------- memarith ---------------------------------
 ---------------------------------------------------------------------
@@ -320,48 +323,52 @@ lift2 f ma mb = bind2 ma mb (\a b -> (unit (f a b)))
 -- (N�o existe uma fun��o com tipo 'M a -> a' !!)
 
 ---------------------------------------------------------------------
--- -- eval function
--- eval :: Exp -> M Integer
+-- eval function
+eval :: Exp -> M Integer
 
--- eval (ENum n) = unit n
+eval (ENum n) = unit n
 
--- eval (EVar var) = query var
+eval (EVar var) = query var
 
--- eval (EPlus e1 e2) = lift2 (+) (eval e1) (eval e2)
--- eval (ESub e1 e2) = lift2 (-) (eval e1) (eval e2)
--- eval (EMul e1 e2) = lift2 (*) (eval e1) (eval e2)
+eval (EPlus e1 e2) = lift2 (+) (eval e1) (eval e2)
+eval (ESub e1 e2) = lift2 (-) (eval e1) (eval e2)
+eval (EMul e1 e2) = lift2 (*) (eval e1) (eval e2)
 
--- eval (ESeq e1 e2) = lift2 seq (eval e1) (eval e2)
---   where seq x y = y
+eval (ESeq e1 e2) = lift2 seq (eval e1) (eval e2)
+  where seq x y = y
 
--- eval (EAssg var e) = assg var (eval e)
+eval (EAssg var e) = assg var (eval e)
 
--- eval (EInc var) = inc var
+eval (EInc var) = inc var
 
--- eval (EIf cond th el) = 
---   bind (eval cond) (\c -> if c /= 0 then eval th else eval el)
+eval (EIf cond th el) = 
+  bind (eval cond) (\c -> if c /= 0 then eval th else eval el)
 
--- eval (EWhile cond body) = w 0
---   where w n = bind (eval cond) (\c -> 
---                 if c == 0 then unit n
---                 else bind (eval body) (\_ -> w (n + 1)))
+eval (EWhile cond body) = w 0
+  where w n = bind (eval cond) (\c -> 
+                if c == 0 then unit n
+                else bind (eval body) (\_ -> w (n + 1)))
                 
 
 
--- -- n = 10; x = 1; while n do { n := n - 1; x = 2 * x; }; x
--- e =  ESeq (EAssg "n" (ENum 10))
---     (ESeq (EAssg "x" (ENum 1))
---     (ESeq (EWhile (EVar "n")
---                   (ESeq (EAssg "n" (ESub (EVar "n") (ENum 1)))
---                         (EAssg "x" (EMul (EVar "x") (ENum 2)))))
---     (EVar "x")))
+-- n = 10; x = 1; while n do { n := n - 1; x = 2 * x; }; x
+e1 = apply p_exp "n := 10; x := 1; while n do (n:= n - 1; x := 2 * x); x"
 
--- emptyMem = \s -> 0
+emptyMem = \s -> 0
 
 
+prog = "while x do x := x + 1; x := x*4"
+-- main
+main :: IO ()
+--main = print e1
+--main = print "Hello"
+--main = print (apply p_exp prog)
+main = print (show e ++ " = " ++ show' (eval e emptyMem))
+    where show' (a,m) = show a
+          e = case e1 of
+            Nothing -> ENum 0
+            Just (e,_) -> e
 
--- main = print (show e ++ " = " ++ show' (eval e emptyMem))
---    where show' (a,m) = show a
 
 
 -- type Mem = String -> Integer
