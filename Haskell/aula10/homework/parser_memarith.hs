@@ -96,14 +96,14 @@ name =
      sp
      return (first:rest)
 ----------------------------------------------------------------------
-
+type Var = String
 data Exp = ENum Integer
-         | EVar String
+         | EVar Var
          | EPlus Exp Exp
          | ESub Exp Exp
          | EMul Exp Exp
-         | EInc Exp
-         | EAssg Exp Exp
+         | EInc Var
+         | EAssg Var Exp
          | ESeq Exp Exp
          | EIf Exp Exp Exp
          | EWhile Exp Exp
@@ -158,7 +158,6 @@ p_primary = p_int `orelse` p_var `orelse` p_par
 --   do exps <- many1 p_primary
 --      return (foldl1 ExpApp exps)
 
-
 buildBinExp :: Exp -> [(String, Exp)] -> Exp
 buildBinExp e l = foldl f e l
   where
@@ -176,7 +175,7 @@ binExp elem ops =
      return (buildBinExp e es)
 
 -- term :: Parser Exp
--- term = binExp p_app ["*", "/"]
+-- term = binExp p_seq ["*", "/"]
 
 -- p_sum :: Parser Exp       -- exp
 -- p_sum = binExp term ["+", "-"]
@@ -210,16 +209,24 @@ p_seq =
      cmd2 <- p_exp
      return (ESeq cmd1 cmd2)
 
+-- seq
+-- p_seq :: Parser Exp
+-- p_seq =
+--   do exp <- p_exp
+--      string ";"
+--      exps <- many1 p_primary
+--      return (ESeq exp (foldl1 ESeq exps))
+
 p_assg :: Parser Exp
 p_assg =
-  do var <- p_var
+  do var <- name
      string ":="
      exp <- p_exp
      return (EAssg var exp)     
 
 p_inc :: Parser Exp
 p_inc =
-  do var <- p_var
+  do var <- name
      string "++"
      return (EInc var)
 
@@ -230,7 +237,7 @@ p_inc =
 --      var <- name
 --      string "->"
 --      body <- p_exp
---      return (ExpLambda var body)
+--      return (ExpLambda var p_ifbody)
 
 -- let = 'letrec' name '=' '\' name '->' exp 'in' exp
 -- p_let :: Parser Exp
@@ -249,13 +256,15 @@ p_inc =
 
 p_exp :: Parser Exp
 --p_exp = sp >> (p_let `orelse` p_lambda `orelse` p_if `orelse` p_arith)
-p_exp = sp >> (p_seq)
+--p_exp = sp >> (p_seq `orelse` p_if `orelse` p_while `orelse` p_primary)
+p_exp = sp >> (p_while `orelse` p_if `orelse`  p_primary)
+--p_exp = sp >> (p_seq `orelse` p_if `orelse` p_while `orelse` p_primary)
 ----------------------------------------------------------------------
 
-prog = "\\x -> letrec y = \\x -> x * 5 in if x then y a b else b * 25"
+prog = "x:=10;y:=20"
 -- main
-main :: IO ()
-main = print (apply p_exp prog)
+--main :: IO ()
+--main = print (apply p_seq prog)
 
 ------------------------- memarith ---------------------------------
 ---------------------------------------------------------------------
