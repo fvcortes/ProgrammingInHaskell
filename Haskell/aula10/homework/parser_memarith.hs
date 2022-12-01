@@ -369,6 +369,15 @@ main = print (show e ++ " = " ++ show' (eval e emptyMem))
             Nothing -> ENum 0
             Just (e,_) -> e
 
+-- Exercício: 
+-- fazer o show ter menos parênteses possível
+-- Passar a prioridade como parametro, assim a expressão dentro do show vai saber se ela esta dentro de um cara com mais prioridade que ele ou não
+-- fazer uma função parshow
+-- parshow :: Exp -> Bool -> String
+-- parshow Exp False = show' Exp
+-- parshow Exp True = "(" ++ show' Exp ++ ")" 
+
+-- se p é menor que a prioridade então eu coloco parênteses se não eu não coloco
 
 
 -- type Mem = String -> Integer
