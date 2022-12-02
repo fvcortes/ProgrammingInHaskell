@@ -1,3 +1,5 @@
+import Data.Char
+
 data Exp = ENum Integer
          | EVar String
          | EPlus Exp Exp
@@ -9,20 +11,68 @@ data Exp = ENum Integer
          | EIf Exp Exp Exp
          | EWhile Exp Exp
 
+p_plus = 1
+p_sub = 1
+p_mul = 1
+p_assg = 3
+p_while = 1
+
+p_seq = 2
 
 instance Show Exp where
-  show (ENum n) = show n
-  show (EVar s) = s
-  show (EPlus e1 e2) = "(" ++ show e1 ++ " + " ++ show e2 ++ ")"
-  show (ESub e1 e2) = "(" ++ show e1 ++ " - " ++ show e2 ++ ")"
-  show (EMul e1 e2) = "(" ++ show e1 ++ " * " ++ show e2 ++ ")"
-  show (EInc v) = v ++ "++ "
-  show (EAssg v e) = "(" ++ v ++ " := " ++ show e ++ ")"
-  show (ESeq e1 e2) = show e1 ++ "; " ++ show e2
-  show (EIf cond th el) = "if " ++ show cond ++ " then " ++
-                          show th ++ " else " ++ show el
-  show (EWhile cond body) = "while " ++ show cond ++ " do " ++ show body
+  show = show'
 
+
+parshow :: Exp -> Bool -> String
+parshow exp False = show' exp
+parshow exp True = "(" ++ show' exp ++ ")"
+
+
+show' :: Exp -> String
+show' (ENum n) = show n
+show' (EVar s) = s
+show' (EPlus e1 e2) = "(" ++ show' e1 ++ " + " ++ show' e2 ++ ")"
+show' (ESub e1 e2) = "(" ++ show' e1 ++ " - " ++ show' e2 ++ ")"
+show' (EMul e1 e2) = "(" ++ show' e1 ++ " * " ++ show' e2 ++ ")"
+show' (EInc v) = v ++ "++ "
+show' (EAssg v e) = "(" ++ v ++ " .= " ++ show' e ++ ")"
+show' (ESeq e1 e2) = show' e1 ++ "; " ++ show' e2
+show' (EIf cond th el) = "if " ++ show' cond ++ " then " ++
+                        show' th ++ " else " ++ show' el
+show' (EWhile cond body) = "while " ++ show' cond ++ " do " ++ show' body
+
+show'' :: Exp -> Integer -> String
+show'' (ENum n) _ = show n
+show'' (EVar s) _ = s
+show'' (EPlus e1 e2) p = if p < p_plus then "(" ++ show'' e1 p_plus ++ " + " ++ show'' e2 p_plus ++ ")" else show'' e1 p_plus ++ " + " ++ show'' e2 p_plus
+show'' (ESub e1 e2) p = if p < p_sub then "(" ++ show'' e1 p_sub ++ " - " ++ show'' e2 p_sub ++ ")" else show'' e1 p_sub ++ " - " ++ show'' e2 p_sub
+show'' (EMul e1 e2) p = if p < p_mul then "(" ++ show'' e1 p_mul ++ " * " ++ show'' e2 p_mul ++ ")" else show'' e1 p_mul ++ " * " ++ show'' e2 p_mul
+show'' (EInc v) _ = v ++ "++ "
+show'' (EAssg v e) p = v ++ " .= " ++ show'' e p
+show'' (ESeq e1 e2) p = show'' e1 p ++ "; " ++ show'' e2 p
+show'' (EIf cond th el) p = "if " ++ show'' cond p ++ " then " ++
+                        show'' th p ++ " else " ++ show'' el p
+show'' (EWhile cond body) p = "while " ++ show'' cond p ++ " do " ++ "(" ++ show'' body p ++ ")"
+
+
+
+---------------------------------------------------------------------
+instance Num Exp where
+  (+) = EPlus
+  (*) = EMul
+  (-) = ESub
+  fromInteger = ENum
+  abs = error "not implemented"
+  signum = error "not implemented"
+
+---------------------------------------------------------------------
+(.=) = EAssg
+(.|) = ESeq
+v = EVar
+
+infixr 2 .|
+infixr 3 .= 
+---------------------------------------------------------------------
 
 ---------------------------------------------------------------------
 type Mem = String -> Integer
@@ -32,6 +82,9 @@ type M a = Mem -> (a, Mem)
 ---------------------------------------------------------------------
 unit :: a -> M a
 unit x = \m -> (x, m)
+
+
+
 
 bind :: M a -> (a -> M b) -> M b
 -- bind :: (Mem -> (a, Mem)) -> (a -> (Mem -> (b, Mem))) -> (Mem -> (b, Mem))
@@ -106,18 +159,20 @@ eval (EWhile cond body) = w 0
 
 
 -- n = 10; x = 1; while n do { n := n - 1; x = 2 * x; }; x
-e =  ESeq (EAssg "n" (ENum 10))
-    (ESeq (EAssg "x" (ENum 1))
-    (ESeq (EWhile (EVar "n")
-                  (ESeq (EAssg "n" (ESub (EVar "n") (ENum 1)))
-                        (EAssg "x" (EMul (EVar "x") (ENum 2)))))
-    (EVar "x")))
+e =  "n" .= 10 .|
+     "x" .= 1 .|
+     EWhile (v"n")
+                  ("n" .= v"n" - 1 .|
+                   "x" .= v"x" * 2) .|
+    v"x"
 
+
+e2 = "n" .= 10 - 3 * 5 .| v"x"
 
 emptyMem = \s -> 0
 
 main :: IO ()
-main = print (show e ++ " = " ++ show' (eval e emptyMem))
+main = print (show'' e 0 ++ " = " ++ show' (eval e emptyMem))
    where show' (a,m) = show a
 
 
