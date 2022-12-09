@@ -10,17 +10,15 @@ data Exp = ENum Integer
          | ESeq Exp Exp
          | EIf Exp Exp Exp
          | EWhile Exp Exp
+  deriving Show
 
-p_plus = 1
-p_sub = 1
-p_mul = 1
-p_assg = 3
-p_while = 1
+p_plus = 50
+p_sub = 50
+p_mul = 70
+p_assg = 30
+p_while = 10
 
-p_seq = 2
-
-instance Show Exp where
-  show = show'
+p_seq = 20
 
 
 parshow :: Exp -> Bool -> String
@@ -41,18 +39,24 @@ show' (EIf cond th el) = "if " ++ show' cond ++ " then " ++
                         show' th ++ " else " ++ show' el
 show' (EWhile cond body) = "while " ++ show' cond ++ " do " ++ show' body
 
+
+parCond :: Integer -> Integer -> String -> String
+parCond p1 p2 exp = if p2 < p1 then "(" ++ exp ++ ")" else exp
+
+
 show'' :: Exp -> Integer -> String
 show'' (ENum n) _ = show n
 show'' (EVar s) _ = s
-show'' (EPlus e1 e2) p = if p < p_plus then "(" ++ show'' e1 p_plus ++ " + " ++ show'' e2 p_plus ++ ")" else show'' e1 p_plus ++ " + " ++ show'' e2 p_plus
-show'' (ESub e1 e2) p = if p < p_sub then "(" ++ show'' e1 p_sub ++ " - " ++ show'' e2 p_sub ++ ")" else show'' e1 p_sub ++ " - " ++ show'' e2 p_sub
-show'' (EMul e1 e2) p = if p < p_mul then "(" ++ show'' e1 p_mul ++ " * " ++ show'' e2 p_mul ++ ")" else show'' e1 p_mul ++ " * " ++ show'' e2 p_mul
+show'' (EPlus e1 e2) p = parCond p p_plus (show'' e1 p_plus ++ " + " ++ show'' e2 p_plus)
+show'' (ESub e1 e2) p = parCond p p_sub (show'' e1 p_sub ++ " - " ++ show'' e2 (p_sub + 1))
+show'' (EMul e1 e2) p = parCond p p_mul (show'' e1 p_mul ++ " * " ++ show'' e2 p_mul)
 show'' (EInc v) _ = v ++ "++ "
-show'' (EAssg v e) p = v ++ " .= " ++ show'' e p
+show'' (EAssg v e) p = v ++ " := " ++ show'' e p
 show'' (ESeq e1 e2) p = show'' e1 p ++ "; " ++ show'' e2 p
 show'' (EIf cond th el) p = "if " ++ show'' cond p ++ " then " ++
                         show'' th p ++ " else " ++ show'' el p
-show'' (EWhile cond body) p = "while " ++ show'' cond p ++ " do " ++ "(" ++ show'' body p ++ ")"
+--show'' (EWhile cond body) p = " while " ++ show'' cond 0 ++ " do " ++ parCond p p_while (show'' body)
+show'' (EWhile cond body) p = "while " ++ show'' cond p ++ " do "  ++ show'' body p
 
 
 
@@ -109,7 +113,6 @@ assg var comp m = let (v, m') = comp m
 
 ---------------------------------------------------------------------
 
--- lift f ma = bind ma (\x -> unit (f x))
 -- lift f ma = bind ma aux
 --   where aux x = unit (f x)
 lift f ma = bind ma (unit . f)
@@ -166,14 +169,18 @@ e =  "n" .= 10 .|
                    "x" .= v"x" * 2) .|
     v"x"
 
+e2 = "n" .= 10 - 20 * 10
 
-e2 = "n" .= 10 - 3 * 5 .| v"x"
+
 
 emptyMem = \s -> 0
 
 main :: IO ()
-main = print (show'' e 0 ++ " = " ++ show' (eval e emptyMem))
-   where show' (a,m) = show a
+main = do print e2
+          print (show'' e2 0)
+          print 10
+
+
 
 
 
