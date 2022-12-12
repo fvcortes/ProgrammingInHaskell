@@ -60,14 +60,6 @@ show'' (EAssg v e) p = parCond p p_assg (v ++ " := " ++ show'' e (p_assg + 1))
 show'' (EIf cond th el) p = parCond p p_if ("if " ++ show'' cond p_if ++ " then " ++
                         show'' th p_if ++ " else " ++ show'' el (p_if + 1))
 show'' (EWhile cond body) p = parCond p p_while ("while " ++ show'' cond p_while ++ " do "  ++ show'' body (p_while + 1))
-
-
---parCond p p_plus (show'' e1 p_plus ++ " + " ++ show'' e2 (p_plus + 1))
---show'' (ESub e1 e2) p = parCond p p_sub (show'' e1 p_sub ++ " - " ++ show'' e2 (p_sub + 1))
---show'' (EMul e1 e2) p = parCond p p_mul (show'' e1 p_mul ++ " * " ++ show'' e2 (p_mul + 1))
---parCond p p_seq (show'' e1 p_seq ++ "; " ++ show'' e2 (p_seq + 1))
-
-
 ---------------------------------------------------------------------
 instance Num Exp where
   (+) = EPlus
@@ -167,10 +159,6 @@ eval (EWhile cond body) = w 0
                 if c == 0 then unit n
                 else bind (eval body) (\_ -> w (n + 1)))
                 
-
-assert False x = "Assertion failed"
-assert _ x = x
-
 testExpression expected actual = if expected == actual then "Passed" else "Failed"
 
 showPar exp = show'' exp 0
@@ -180,6 +168,13 @@ printexp e expected =
     do print e
        print showParExp
        print(testExpression expected showParExp)
+ 
+e =  "n" .= 10 .|
+     "x" .= 1 .|
+     EWhile (v"n")
+                  ("n" .= v"n" - 1 .|
+                   "x" .= v"x" * 2) .|
+    v"x"
 
 esub = "n" .= (((10 - 20) - 30) - 40)
 eplus = "n" .= 10 + (20 + (30 + 40))
@@ -190,6 +185,7 @@ eassg2 = "n" .= 5 * ("x" .= (10 - (20 - 30)))
 eassg3 = "n" .= ("x" .= (10 - (20 - 30)))
 eseq = "n" .= (10 .| "y" .= 20 + 10)
 eseq2 = "n" .= (1 + 2 .| 3 + 4)
+eseq3 = "n" .= 1 + 2 .| 3 + 4
 eif = "n" .= EIf 0 1 2
 eif2 = "n" .= EIf 0 1 (2 .| 3)
 eif3 = "n" .= EIf 0 1 2 .| 3
@@ -209,6 +205,7 @@ expectedEassg2 = "n := 5 * (x := 10 - (20 - 30))"
 expectedEassg3 = "n := (x := 10 - (20 - 30))"
 expectedEseq = "n := (10; y := 20 + 10)"
 expectedEseq2 = "n := (1 + 2; 3 + 4)"
+expectedEseq3 = "n := 1 + 2; 3 + 4"
 expectedEif = "n := (if 0 then 1 else 2)"
 expectedEif2 = "n := (if 0 then 1 else 2; 3)"
 expectedEif3 = "n := (if 0 then 1 else 2); 3"
@@ -230,6 +227,7 @@ main = do printexp esub expectedEsub
           printexp eassg3 expectedEassg3
           printexp eseq expectedEseq
           printexp eseq2 expectedEseq2
+          printexp eseq3 expectedEseq3
           printexp eif expectedEif
           printexp eif2 expectedEif2
           printexp eif3 expectedEif3
@@ -238,6 +236,3 @@ main = do printexp esub expectedEsub
           printexp ewhile3 expectedEwhile3
           printexp ewhileif expectedEwhileif
           printexp ewhileif2 expectedEwhileif2
-
-
-

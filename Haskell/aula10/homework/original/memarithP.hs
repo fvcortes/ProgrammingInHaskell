@@ -292,11 +292,11 @@ lift2 :: (a -> b -> c) -> M a -> M b -> M c
 lift2 f ma mb = bind2 ma mb (\a b -> (unitM (f a b)))
 
 
--- Mônada:
+-- Mï¿½nada:
 -- Um construtor de tipos M (e.g., Maybe)
--- Uma função 'unit :: a -> M a'
--- Uma função 'bind :: M a -> (a -> M b) -> M b'
--- (Não existe uma função com tipo 'M a -> a' !!)
+-- Uma funï¿½ï¿½o 'unit :: a -> M a'
+-- Uma funï¿½ï¿½o 'bind :: M a -> (a -> M b) -> M b'
+-- (Nï¿½o existe uma funï¿½ï¿½o com tipo 'M a -> a' !!)
 
 ---------------------------------------------------------------------
 
@@ -327,6 +327,9 @@ eval (EWhile cond body) = w 0
                 else bindM (eval body) (\_ -> w (n + 1)))
                 
 
+assert :: Bool -> a -> a
+assert False x = error "Assertion failed"
+assert _ x = x
 
 -- n = 10; x = 1; while n do { n := n - 1; x = 2 * x; }; x
 e1 =  apply p_exp "n := 10; x := 1; while n do (n := n - 1; x := 2 * x); x"
