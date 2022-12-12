@@ -16,11 +16,11 @@ p_plus = 80
 p_sub = 80
 p_mul = 100
 p_assg = 70
-p_while = 40
+p_while = 50
 
-p_seq = 60
+p_seq = 40
 
-p_if = 50
+p_if = 60
 
 
 parshow :: Exp -> Bool -> String
@@ -46,6 +46,7 @@ parCond :: Integer -> Integer -> String -> String
 parCond p1 p2 exp = if p2 < p1 then "(" ++ exp ++ ")" else exp
 
 parCondBin p1 p2 e1 e2 op = parCond p1 p2 (show'' e1 p2 ++ op ++ show'' e2 (p2 + 1))
+
 
 
 show'' :: Exp -> Integer -> String
@@ -159,6 +160,9 @@ eval (EWhile cond body) = w 0
                 if c == 0 then unit n
                 else bind (eval body) (\_ -> w (n + 1)))
                 
+assert False x = error "Failed"
+assert _ x = x
+
 testExpression expected actual = if expected == actual then "Passed" else "Failed"
 
 showPar exp = show'' exp 0
@@ -176,6 +180,7 @@ e =  "n" .= 10 .|
                    "x" .= v"x" * 2) .|
     v"x"
 
+ebin1 = "n" .= 3 * 5 + 7 * 4
 esub = "n" .= (((10 - 20) - 30) - 40)
 eplus = "n" .= 10 + (20 + (30 + 40))
 emul = "n" .= 10 * (20 * (30 * 40))
@@ -186,14 +191,17 @@ eassg3 = "n" .= ("x" .= (10 - (20 - 30)))
 eseq = "n" .= (10 .| "y" .= 20 + 10)
 eseq2 = "n" .= (1 + 2 .| 3 + 4)
 eseq3 = "n" .= 1 + 2 .| 3 + 4
+eseq4 = "n" .= (((10 .| 20) .| 30) .| 40)
 eif = "n" .= EIf 0 1 2
 eif2 = "n" .= EIf 0 1 (2 .| 3)
+eif2' = (EIf 0 1 2) .| 3
 eif3 = "n" .= EIf 0 1 2 .| 3
 ewhile = "n" .= EWhile 0 1
 ewhile2 = "n" .= EWhile 0 (2 .| 3)
 ewhile3 = "n" .= EWhile 0 2 .| 3
 ewhileif = "n" .= EWhile 0 (EIf 0 1 2 .| 3)
 ewhileif2 = "n" .= EWhile 0 (EIf 0 1 (2 .| 3))
+ewhileif' = "n" .= EWhile 0 ((EIf 0 1 (2 .| 3)) .| 4)
 
 
 expectedEsub = "n := 10 - 20 - 30 - 40"
@@ -218,7 +226,8 @@ expectedEwhileif2 = "n := (while 0 do if 0 then 1 else 2; 3)"
 emptyMem = \s -> 0
 
 main :: IO ()
-main = do printexp esub expectedEsub
+main = do printexp ebin1 expectedEsub
+          printexp esub expectedEsub
           printexp eplus expectedEplus
           printexp emul expectedEmul
           printexp ebin expectedEbin
@@ -230,9 +239,12 @@ main = do printexp esub expectedEsub
           printexp eseq3 expectedEseq3
           printexp eif expectedEif
           printexp eif2 expectedEif2
+          printexp eif2' expectedEif2
           printexp eif3 expectedEif3
           printexp ewhile expectedEwhile
           printexp ewhile2 expectedEwhile2
           printexp ewhile3 expectedEwhile3
           printexp ewhileif expectedEwhileif
           printexp ewhileif2 expectedEwhileif2
+          printexp eseq4 expectedEseq3
+          printexp ewhileif' expectedEwhileif2

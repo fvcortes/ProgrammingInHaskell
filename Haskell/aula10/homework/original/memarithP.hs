@@ -57,8 +57,10 @@ instance Applicative Parser where
 
 
 instance Monad Parser where
-  return = unit
+  return = pure
   (>>=) = bind
+
+instance MonadFail Parser where
   fail _ = Parser (\s -> Nothing)
 
 
@@ -326,10 +328,6 @@ eval (EWhile cond body) = w 0
                 if c == 0 then unitM n
                 else bindM (eval body) (\_ -> w (n + 1)))
                 
-
-assert :: Bool -> a -> a
-assert False x = error "Assertion failed"
-assert _ x = x
 
 -- n = 10; x = 1; while n do { n := n - 1; x = 2 * x; }; x
 e1 =  apply p_exp "n := 10; x := 1; while n do (n := n - 1; x := 2 * x); x"
